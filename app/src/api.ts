@@ -1,18 +1,19 @@
 import {sha256} from 'js-sha256';
+import NativeHttpCache from './NativeHttpCache';
 import type {LottieFetchResult, Mode, ServerState} from './types';
 
 export async function fetchLottie(
   baseUrl: string,
-  noCache = false,
+  forceRefresh = false,
 ): Promise<LottieFetchResult> {
   const url = `${baseUrl}/lottie.json`;
-  const headers: Record<string, string> = {};
-  if (noCache) {
-    headers['Cache-Control'] = 'no-cache';
+
+  if (forceRefresh) {
+    await NativeHttpCache.clearCache();
   }
 
   const start = Date.now();
-  const res = await fetch(url, {headers});
+  const res = await fetch(url);
   const bodyText = await res.text();
   const fetchTimeMs = Date.now() - start;
 

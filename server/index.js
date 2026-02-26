@@ -46,7 +46,7 @@ app.get("/lottie.json", (req, res) => {
     res.set("ETag", etag);
     res.set("Last-Modified", lastMod);
     if (mode === "B") {
-      res.set("Cache-Control", "public, max-age=30, must-revalidate");
+      res.set("Cache-Control", "public, max-age=30");
     }
     return res.status(304).end();
   }
@@ -57,7 +57,7 @@ app.get("/lottie.json", (req, res) => {
   res.set("ETag", etag);
   res.set("Last-Modified", lastMod);
   if (mode === "B") {
-    res.set("Cache-Control", "public, max-age=30, must-revalidate");
+    res.set("Cache-Control", "public, max-age=30");
   }
   res.status(200).send(body);
 });
@@ -105,6 +105,7 @@ app.get("/state", (_req, res) => {
     lastModified: lastModified.toISOString(),
     etag,
     requestCount,
+    cacheControl: mode === "B" ? "public, max-age=30" : null,
   });
 });
 

@@ -153,7 +153,7 @@ function App(): React.JSX.Element {
           <Text style={styles.sectionTitle}>Actions</Text>
           <View style={styles.buttonRow}>
             <Btn title="Fetch" color="#2196F3" loading={loading} onPress={() => handleFetch(false)} />
-            <Btn title="Fetch (no-cache)" color="#00BCD4" onPress={() => handleFetch(true)} />
+            <Btn title="Force Fetch" color="#00BCD4" onPress={() => handleFetch(true)} />
             <Btn title="Flip Version" color="#FF9800" onPress={handleFlip} />
           </View>
           <View style={styles.buttonRow}>
@@ -189,6 +189,7 @@ function App(): React.JSX.Element {
             <InfoRow label="Mode" value={serverState.mode} />
             <InfoRow label="Version" value={`v${serverState.version}`} />
             <InfoRow label="Request Count" value={String(serverState.requestCount)} highlight />
+            <InfoRow label="Cache-Control" value={serverState.cacheControl ?? '(none)'} />
             <InfoRow label="Server ETag" value={serverState.etag} mono />
             <InfoRow label="Last-Modified" value={serverState.lastModified} />
           </View>

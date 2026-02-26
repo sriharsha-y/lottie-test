@@ -2,6 +2,16 @@
   "name": "LottieCacheDemo",
   "version": "0.0.1",
   "private": true,
+  "codegenConfig": {
+    "name": "AppSpecs",
+    "type": "modules",
+    "jsSrcsDir": "src",
+    "ios": {
+      "modulesProvider": {
+        "HttpCache": "RCTHttpCache"
+      }
+    }
+  },
   "scripts": {
     "android": "react-native run-android",
     "ios": "react-native run-ios",

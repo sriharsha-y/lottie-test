@@ -16,6 +16,7 @@ export interface ServerState {
   lastModified: string;
   etag: string;
   requestCount: number;
+  cacheControl: string | null;
 }
 
 export type Mode = "A" | "B";
