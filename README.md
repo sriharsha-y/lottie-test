@@ -137,12 +137,20 @@ SELECT request_key, time_stamp FROM cfurl_cache_response ORDER BY time_stamp DES
 
 ### The iOS Caching Problem
 
-When `NSURLSession` (used by React Native's `fetch()`) receives a response with `ETag` and `Last-Modified` but no `Cache-Control`, it applies **heuristic caching** per RFC 7234. It may decide the response is "fresh enough" and serve it from cache without ever contacting the server — returning HTTP 200 (not 304) to JavaScript.
+When `NSURLSession` (used by React Native's `fetch()`) receives a response with `ETag` and `Last-Modified` but no `Cache-Control`, it applies **heuristic caching** per RFC 7234. It calculates a freshness lifetime using the **10% rule**:
+
+```
+freshness_lifetime = (time_downloaded - Last-Modified) × 10%
+```
+
+For example, if `Last-Modified` is 73 days ago, iOS will cache the response for **7.3 days** without ever contacting the server — returning HTTP 200 (not 304) to JavaScript.
 
 This means:
 - Your app thinks it got a fresh response (status 200)
 - The body may be stale
 - The server never saw the request (request count doesn't increase)
+
+See [docs/IOS_HEURISTIC_CACHING.md](docs/IOS_HEURISTIC_CACHING.md) for detailed examples and the full explanation.
 
 ### The Fix
 
