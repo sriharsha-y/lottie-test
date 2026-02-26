@@ -21,6 +21,15 @@ import {
 } from './src/api';
 import type {LottieFetchResult, ServerState} from './src/types';
 
+function formatIST(date: Date | string): string {
+  const d = typeof date === 'string' ? new Date(date) : date;
+  return d.toLocaleString('en-IN', {timeZone: 'Asia/Kolkata'});
+}
+
+function formatISTTime(date: Date): string {
+  return date.toLocaleTimeString('en-IN', {timeZone: 'Asia/Kolkata'});
+}
+
 function App(): React.JSX.Element {
   const [serverUrl, setServerUrl] = useState(DEFAULT_SERVER_URL);
   const [animationJson, setAnimationJson] = useState<AnimationObject | null>(null);
@@ -30,7 +39,7 @@ function App(): React.JSX.Element {
   const [loading, setLoading] = useState(false);
 
   const addLog = useCallback((msg: string) => {
-    const ts = new Date().toLocaleTimeString();
+    const ts = formatISTTime(new Date());
     setLog(prev => [`[${ts}] ${msg}`, ...prev].slice(0, 50));
   }, []);
 
@@ -174,7 +183,7 @@ function App(): React.JSX.Element {
             <InfoRow label="Status" value={String(fetchResult.status)} />
             <InfoRow label="demoVersion" value={String(fetchResult.demoVersion ?? '—')} />
             <InfoRow label="ETag" value={fetchResult.etag ?? '—'} />
-            <InfoRow label="Last-Modified" value={fetchResult.lastModified ?? '—'} />
+            <InfoRow label="Last-Modified" value={fetchResult.lastModified ? formatIST(fetchResult.lastModified) : '—'} />
             <InfoRow label="Cache-Control" value={fetchResult.cacheControl ?? '(none)'} />
             <InfoRow label="Body SHA-256" value={fetchResult.bodySha256} mono />
             <InfoRow label="Body Length" value={`${fetchResult.bodyLength} bytes`} />
@@ -191,7 +200,7 @@ function App(): React.JSX.Element {
             <InfoRow label="Request Count" value={String(serverState.requestCount)} highlight />
             <InfoRow label="Cache-Control" value={serverState.cacheControl ?? '(none)'} />
             <InfoRow label="Server ETag" value={serverState.etag} mono />
-            <InfoRow label="Last-Modified" value={serverState.lastModified} />
+            <InfoRow label="Last-Modified" value={formatIST(serverState.lastModified)} />
           </View>
         )}
 

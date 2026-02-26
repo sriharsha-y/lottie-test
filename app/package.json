@@ -10,6 +10,9 @@
       "modulesProvider": {
         "HttpCache": "RCTHttpCache"
       }
+    },
+    "android": {
+      "javaPackageName": "com.lottiecachedemo"
     }
   },
   "scripts": {

@@ -13,6 +13,10 @@ let lastModified = new Date("2025-12-01T00:00:00Z");
 let requestCount = 0;
 
 // --- Helpers ---
+function formatIST(date) {
+  return date.toLocaleString("en-IN", { timeZone: "Asia/Kolkata" });
+}
+
 function loadLottie(version) {
   const file = path.join(__dirname, "assets", `v${version}.json`);
   return fs.readFileSync(file, "utf8");
@@ -32,12 +36,12 @@ app.get("/lottie.json", (req, res) => {
   const etag = computeETag(body);
   const lastMod = lastModified.toUTCString();
 
-  console.log(`\n--- /lottie.json request #${requestCount} ---`);
+  console.log(`\n--- /lottie.json request #${requestCount} [${formatIST(new Date())}] ---`);
   console.log(`  Mode: ${mode} | Version: v${currentVersion}`);
   console.log(`  If-None-Match: ${req.headers["if-none-match"] || "(none)"}`);
   console.log(`  If-Modified-Since: ${req.headers["if-modified-since"] || "(none)"}`);
   console.log(`  ETag: ${etag}`);
-  console.log(`  Last-Modified: ${lastMod}`);
+  console.log(`  Last-Modified: ${lastMod} (IST: ${formatIST(lastModified)})`);
 
   // Conditional GET: check If-None-Match
   const clientETag = req.headers["if-none-match"];
@@ -65,7 +69,7 @@ app.get("/lottie.json", (req, res) => {
 // POST /flip — Toggle between v1 and v2
 app.post("/flip", (_req, res) => {
   currentVersion = currentVersion === 1 ? 2 : 1;
-  console.log(`\n[FLIP] Now serving v${currentVersion}`);
+  console.log(`\n[FLIP] [${formatIST(new Date())}] Now serving v${currentVersion}`);
   res.json({ version: currentVersion });
 });
 
@@ -76,7 +80,7 @@ app.post("/mode", (req, res) => {
     return res.status(400).json({ error: "mode must be 'A' or 'B'" });
   }
   mode = newMode;
-  console.log(`\n[MODE] Switched to Mode ${mode}`);
+  console.log(`\n[MODE] [${formatIST(new Date())}] Switched to Mode ${mode}`);
   res.json({ mode });
 });
 
@@ -91,7 +95,7 @@ app.post("/lastModified", (req, res) => {
     return res.status(400).json({ error: "invalid ISO date" });
   }
   lastModified = date;
-  console.log(`\n[LAST-MODIFIED] Set to ${lastModified.toUTCString()}`);
+  console.log(`\n[LAST-MODIFIED] [${formatIST(new Date())}] Set to ${formatIST(lastModified)}`);
   res.json({ lastModified: lastModified.toISOString() });
 });
 
@@ -115,14 +119,14 @@ app.post("/reset", (_req, res) => {
   mode = "A";
   lastModified = new Date("2025-12-01T00:00:00Z");
   requestCount = 0;
-  console.log("\n[RESET] All state reset to defaults");
+  console.log(`\n[RESET] [${formatIST(new Date())}] All state reset to defaults`);
   res.json({ ok: true });
 });
 
 // --- Start ---
 const PORT = 3000;
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`Lottie cache demo server running on http://0.0.0.0:${PORT}`);
+  console.log(`[${formatIST(new Date())}] Lottie cache demo server running on http://0.0.0.0:${PORT}`);
   console.log(`Mode: ${mode} | Version: v${currentVersion}`);
   console.log(`Endpoints:`);
   console.log(`  GET  /lottie.json   — Fetch current Lottie`);
