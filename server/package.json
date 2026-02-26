@@ -1,0 +1,13 @@
+{
+  "name": "lottie-cache-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "HTTP caching demo server for Lottie JSON",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0"
+  }
+}
