@@ -10,7 +10,7 @@ app.use(express.json());
 let currentVersion = 1; // 1 or 2
 let mode = "A"; // "A" = no Cache-Control, "B" = with Cache-Control
 let lastModified = new Date("2025-12-01T00:00:00Z");
-let requestCount = 0;
+let requestCount = { json: 0, png: 0, svg: 0 };
 
 // --- Helpers ---
 function formatIST(date) {
@@ -22,6 +22,11 @@ function loadLottie(version) {
   return fs.readFileSync(file, "utf8");
 }
 
+function loadImage(version, ext) {
+  const file = path.join(__dirname, "assets", `v${version}.${ext}`);
+  return fs.readFileSync(file);
+}
+
 function computeETag(body) {
   const hash = crypto.createHash("sha256").update(body).digest("hex");
   return `"${hash}"`;
@@ -31,12 +36,12 @@ function computeETag(body) {
 
 // GET /lottie.json — Serve current Lottie with conditional GET support
 app.get("/lottie.json", (req, res) => {
-  requestCount++;
+  requestCount.json++;
   const body = loadLottie(currentVersion);
   const etag = computeETag(body);
   const lastMod = lastModified.toUTCString();
 
-  console.log(`\n--- /lottie.json request #${requestCount} [${formatIST(new Date())}] ---`);
+  console.log(`\n--- /lottie.json request #${requestCount.json} [${formatIST(new Date())}] ---`);
   console.log(`  Mode: ${mode} | Version: v${currentVersion}`);
   console.log(`  If-None-Match: ${req.headers["if-none-match"] || "(none)"}`);
   console.log(`  If-Modified-Since: ${req.headers["if-modified-since"] || "(none)"}`);
@@ -58,6 +63,76 @@ app.get("/lottie.json", (req, res) => {
   // Full response
   console.log(`  → 200 OK (${body.length} bytes)`);
   res.set("Content-Type", "application/json");
+  res.set("ETag", etag);
+  res.set("Last-Modified", lastMod);
+  if (mode === "B") {
+    res.set("Cache-Control", "public, max-age=30");
+  }
+  res.status(200).send(body);
+});
+
+// GET /image.png — Serve current PNG with conditional GET support
+app.get("/image.png", (req, res) => {
+  requestCount.png++;
+  const body = loadImage(currentVersion, "png");
+  const etag = computeETag(body);
+  const lastMod = lastModified.toUTCString();
+
+  console.log(`\n--- /image.png request #${requestCount.png} [${formatIST(new Date())}] ---`);
+  console.log(`  Mode: ${mode} | Version: v${currentVersion}`);
+  console.log(`  If-None-Match: ${req.headers["if-none-match"] || "(none)"}`);
+  console.log(`  ETag: ${etag}`);
+
+  // Conditional GET: check If-None-Match
+  const clientETag = req.headers["if-none-match"];
+  if (clientETag && clientETag === etag) {
+    console.log(`  → 304 Not Modified`);
+    res.set("ETag", etag);
+    res.set("Last-Modified", lastMod);
+    if (mode === "B") {
+      res.set("Cache-Control", "public, max-age=30");
+    }
+    return res.status(304).end();
+  }
+
+  // Full response
+  console.log(`  → 200 OK (${body.length} bytes)`);
+  res.set("Content-Type", "image/png");
+  res.set("ETag", etag);
+  res.set("Last-Modified", lastMod);
+  if (mode === "B") {
+    res.set("Cache-Control", "public, max-age=30");
+  }
+  res.status(200).send(body);
+});
+
+// GET /image.svg — Serve current SVG with conditional GET support
+app.get("/image.svg", (req, res) => {
+  requestCount.svg++;
+  const body = loadImage(currentVersion, "svg");
+  const etag = computeETag(body);
+  const lastMod = lastModified.toUTCString();
+
+  console.log(`\n--- /image.svg request #${requestCount.svg} [${formatIST(new Date())}] ---`);
+  console.log(`  Mode: ${mode} | Version: v${currentVersion}`);
+  console.log(`  If-None-Match: ${req.headers["if-none-match"] || "(none)"}`);
+  console.log(`  ETag: ${etag}`);
+
+  // Conditional GET: check If-None-Match
+  const clientETag = req.headers["if-none-match"];
+  if (clientETag && clientETag === etag) {
+    console.log(`  → 304 Not Modified`);
+    res.set("ETag", etag);
+    res.set("Last-Modified", lastMod);
+    if (mode === "B") {
+      res.set("Cache-Control", "public, max-age=30");
+    }
+    return res.status(304).end();
+  }
+
+  // Full response
+  console.log(`  → 200 OK (${body.length} bytes)`);
+  res.set("Content-Type", "image/svg+xml");
   res.set("ETag", etag);
   res.set("Last-Modified", lastMod);
   if (mode === "B") {
@@ -108,7 +183,10 @@ app.get("/state", (_req, res) => {
     version: currentVersion,
     lastModified: lastModified.toISOString(),
     etag,
-    requestCount,
+    requestCount: requestCount.json, // Backwards compatibility
+    jsonCount: requestCount.json,
+    pngCount: requestCount.png,
+    svgCount: requestCount.svg,
     cacheControl: mode === "B" ? "public, max-age=30" : null,
   });
 });
@@ -118,7 +196,7 @@ app.post("/reset", (_req, res) => {
   currentVersion = 1;
   mode = "A";
   lastModified = new Date("2025-12-01T00:00:00Z");
-  requestCount = 0;
+  requestCount = { json: 0, png: 0, svg: 0 };
   console.log(`\n[RESET] [${formatIST(new Date())}] All state reset to defaults`);
   res.json({ ok: true });
 });
@@ -129,7 +207,9 @@ app.listen(PORT, "0.0.0.0", () => {
   console.log(`[${formatIST(new Date())}] Lottie cache demo server running on http://0.0.0.0:${PORT}`);
   console.log(`Mode: ${mode} | Version: v${currentVersion}`);
   console.log(`Endpoints:`);
-  console.log(`  GET  /lottie.json   — Fetch current Lottie`);
+  console.log(`  GET  /lottie.json   — Fetch current Lottie JSON`);
+  console.log(`  GET  /image.png     — Fetch current PNG image`);
+  console.log(`  GET  /image.svg     — Fetch current SVG image`);
   console.log(`  POST /flip          — Toggle v1/v2`);
   console.log(`  POST /mode          — {"mode":"A"} or {"mode":"B"}`);
   console.log(`  POST /lastModified  — {"iso":"2025-12-15T00:00:00Z"}`);

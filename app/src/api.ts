@@ -1,6 +1,7 @@
 import {sha256} from 'js-sha256';
+import {Buffer} from 'buffer';
 import NativeHttpCache from './NativeHttpCache';
-import type {LottieFetchResult, Mode, ServerState} from './types';
+import type {LottieFetchResult, ImageFetchResult, ImageFormat, Mode, ServerState} from './types';
 
 export async function fetchLottie(
   baseUrl: string,
@@ -38,6 +39,52 @@ export async function fetchLottie(
     bodyLength: bodyText.length,
     fetchTimeMs,
     json,
+  };
+}
+
+export async function fetchImage(
+  baseUrl: string,
+  format: ImageFormat,
+  forceRefresh = false,
+): Promise<ImageFetchResult> {
+  const url = `${baseUrl}/image.${format}`;
+
+  if (forceRefresh) {
+    await NativeHttpCache.clearCache();
+  }
+
+  const start = Date.now();
+  const res = await fetch(url);
+  const fetchTimeMs = Date.now() - start;
+
+  // Handle 304 Not Modified
+  if (res.status === 304) {
+    return {
+      status: 304,
+      etag: res.headers.get('etag'),
+      lastModified: res.headers.get('last-modified'),
+      cacheControl: res.headers.get('cache-control'),
+      bodySha256: '',
+      bodyLength: 0,
+      fetchTimeMs,
+      base64: null,
+    };
+  }
+
+  const arrayBuffer = await res.arrayBuffer();
+  const bytes = new Uint8Array(arrayBuffer);
+  const base64 = Buffer.from(bytes).toString('base64');
+  const bodySha256 = sha256(bytes);
+
+  return {
+    status: res.status,
+    etag: res.headers.get('etag'),
+    lastModified: res.headers.get('last-modified'),
+    cacheControl: res.headers.get('cache-control'),
+    bodySha256,
+    bodyLength: arrayBuffer.byteLength,
+    fetchTimeMs,
+    base64,
   };
 }
 

@@ -8,18 +8,24 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  Image,
 } from 'react-native';
 import LottieView, {type AnimationObject} from 'lottie-react-native';
+import {SvgXml} from 'react-native-svg';
+import {Buffer} from 'buffer';
 import {DEFAULT_SERVER_URL} from './src/config';
 import {
   fetchLottie,
+  fetchImage,
   flipVersion,
   setMode,
   setLastModified,
   getServerState,
   resetServer,
 } from './src/api';
-import type {LottieFetchResult, ServerState} from './src/types';
+import type {LottieFetchResult, ImageFetchResult, ServerState, ImageFormat} from './src/types';
+
+type TabType = 'json' | 'png' | 'svg';
 
 function formatIST(date: Date | string): string {
   const d = typeof date === 'string' ? new Date(date) : date;
@@ -32,8 +38,20 @@ function formatISTTime(date: Date): string {
 
 function App(): React.JSX.Element {
   const [serverUrl, setServerUrl] = useState(DEFAULT_SERVER_URL);
+  const [activeTab, setActiveTab] = useState<TabType>('json');
+
+  // JSON (Lottie) state
   const [animationJson, setAnimationJson] = useState<AnimationObject | null>(null);
-  const [fetchResult, setFetchResult] = useState<LottieFetchResult | null>(null);
+  const [jsonResult, setJsonResult] = useState<LottieFetchResult | null>(null);
+
+  // PNG state
+  const [pngBase64, setPngBase64] = useState<string | null>(null);
+  const [pngResult, setPngResult] = useState<ImageFetchResult | null>(null);
+
+  // SVG state
+  const [svgXml, setSvgXml] = useState<string | null>(null);
+  const [svgResult, setSvgResult] = useState<ImageFetchResult | null>(null);
+
   const [serverState, setServerState] = useState<ServerState | null>(null);
   const [log, setLog] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -53,23 +71,51 @@ function App(): React.JSX.Element {
     }
   }, [serverUrl, addLog]);
 
-  const handleFetch = useCallback(async (noCache = false) => {
+  const handleFetchJson = useCallback(async (noCache = false) => {
     setLoading(true);
     try {
       const result = await fetchLottie(serverUrl, noCache);
-      setFetchResult(result);
+      setJsonResult(result);
       if (result.json) {
         setAnimationJson(result.json as unknown as AnimationObject);
       }
       addLog(
-        `Fetch → ${result.status} | v${result.demoVersion} | ` +
-        `hash:${result.bodySha256.slice(0, 8)}… | ${result.fetchTimeMs}ms` +
-        (result.cacheControl ? ` | CC: ${result.cacheControl}` : ''),
+        `[JSON] ${result.status} | v${result.demoVersion} | ` +
+        `${result.bodySha256.slice(0, 8)}… | ${result.fetchTimeMs}ms`,
       );
       await refreshServerState();
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      addLog(`Fetch error: ${msg}`);
+      addLog(`[JSON] Error: ${msg}`);
+    } finally {
+      setLoading(false);
+    }
+  }, [serverUrl, addLog, refreshServerState]);
+
+  const handleFetchImage = useCallback(async (format: ImageFormat, noCache = false) => {
+    setLoading(true);
+    try {
+      const result = await fetchImage(serverUrl, format, noCache);
+      if (format === 'png') {
+        setPngResult(result);
+        if (result.base64) {
+          setPngBase64(result.base64);
+        }
+      } else {
+        setSvgResult(result);
+        if (result.base64) {
+          const svgContent = Buffer.from(result.base64, 'base64').toString('utf8');
+          setSvgXml(svgContent);
+        }
+      }
+      addLog(
+        `[${format.toUpperCase()}] ${result.status} | ` +
+        `${result.bodySha256.slice(0, 8)}… | ${result.fetchTimeMs}ms`,
+      );
+      await refreshServerState();
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      addLog(`[${format.toUpperCase()}] Error: ${msg}`);
     } finally {
       setLoading(false);
     }
@@ -112,7 +158,11 @@ function App(): React.JSX.Element {
     try {
       await resetServer(serverUrl);
       setAnimationJson(null);
-      setFetchResult(null);
+      setJsonResult(null);
+      setPngBase64(null);
+      setPngResult(null);
+      setSvgXml(null);
+      setSvgResult(null);
       addLog('Server reset');
       await refreshServerState();
     } catch (e: unknown) {
@@ -121,11 +171,65 @@ function App(): React.JSX.Element {
     }
   }, [serverUrl, addLog, refreshServerState]);
 
+  const handleFetch = useCallback((noCache = false) => {
+    if (activeTab === 'json') {
+      handleFetchJson(noCache);
+    } else {
+      handleFetchImage(activeTab, noCache);
+    }
+  }, [activeTab, handleFetchJson, handleFetchImage]);
+
+  const getCurrentResult = () => {
+    if (activeTab === 'json') return jsonResult;
+    if (activeTab === 'png') return pngResult;
+    return svgResult;
+  };
+
+  const renderPreview = () => {
+    if (activeTab === 'json') {
+      if (animationJson) {
+        return (
+          <LottieView
+            source={animationJson}
+            autoPlay
+            loop
+            style={styles.lottie}
+          />
+        );
+      }
+      return <Text style={styles.placeholderText}>No animation loaded</Text>;
+    }
+
+    if (activeTab === 'png') {
+      if (pngBase64) {
+        return (
+          <Image
+            source={{uri: `data:image/png;base64,${pngBase64}`}}
+            style={styles.image}
+            resizeMode="contain"
+          />
+        );
+      }
+      return <Text style={styles.placeholderText}>No PNG loaded</Text>;
+    }
+
+    if (activeTab === 'svg') {
+      if (svgXml) {
+        return <SvgXml xml={svgXml} width={180} height={180} />;
+      }
+      return <Text style={styles.placeholderText}>No SVG loaded</Text>;
+    }
+
+    return null;
+  };
+
+  const result = getCurrentResult();
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" />
       <ScrollView contentContainerStyle={styles.scroll}>
-        <Text style={styles.title}>Lottie Cache Demo</Text>
+        <Text style={styles.title}>Cache Demo</Text>
 
         {/* Server URL Input */}
         <View style={styles.section}>
@@ -141,53 +245,55 @@ function App(): React.JSX.Element {
           />
         </View>
 
-        {/* Lottie Preview */}
-        <View style={styles.previewContainer}>
-          {animationJson ? (
-            <LottieView
-              source={animationJson}
-              autoPlay
-              loop
-              style={styles.lottie}
-            />
-          ) : (
-            <View style={styles.placeholder}>
-              <Text style={styles.placeholderText}>No animation loaded</Text>
-            </View>
-          )}
+        {/* Tabs */}
+        <View style={styles.tabContainer}>
+          <Tab title="JSON" active={activeTab === 'json'} onPress={() => setActiveTab('json')} />
+          <Tab title="PNG" active={activeTab === 'png'} onPress={() => setActiveTab('png')} />
+          <Tab title="SVG" active={activeTab === 'svg'} onPress={() => setActiveTab('svg')} />
         </View>
 
-        {/* Action Buttons */}
+        {/* Preview */}
+        <View style={styles.previewContainer}>
+          {renderPreview()}
+        </View>
+
+        {/* Fetch Buttons */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Actions</Text>
           <View style={styles.buttonRow}>
             <Btn title="Fetch" color="#2196F3" loading={loading} onPress={() => handleFetch(false)} />
             <Btn title="Force Fetch" color="#00BCD4" onPress={() => handleFetch(true)} />
-            <Btn title="Flip Version" color="#FF9800" onPress={handleFlip} />
           </View>
+        </View>
+
+        {/* Server Controls */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Server Controls</Text>
           <View style={styles.buttonRow}>
+            <Btn title="Flip Version" color="#FF9800" onPress={handleFlip} />
             <Btn title="Mode A" color="#9C27B0" onPress={() => handleSetMode('A')} />
             <Btn title="Mode B" color="#4CAF50" onPress={() => handleSetMode('B')} />
-            <Btn title="Reset" color="#f44336" onPress={handleReset} />
           </View>
           <View style={styles.buttonRow}>
             <Btn title="LM: Dec 15" color="#795548" onPress={() => handleSetLastModified('2025-12-15T00:00:00Z')} />
             <Btn title="LM: Now" color="#607D8B" onPress={() => handleSetLastModified(new Date().toISOString())} />
+            <Btn title="Reset" color="#f44336" onPress={handleReset} />
           </View>
         </View>
 
         {/* Response Info */}
-        {fetchResult && (
+        {result && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Last Fetch Response</Text>
-            <InfoRow label="Status" value={String(fetchResult.status)} />
-            <InfoRow label="demoVersion" value={String(fetchResult.demoVersion ?? '—')} />
-            <InfoRow label="ETag" value={fetchResult.etag ?? '—'} />
-            <InfoRow label="Last-Modified" value={fetchResult.lastModified ? formatIST(fetchResult.lastModified) : '—'} />
-            <InfoRow label="Cache-Control" value={fetchResult.cacheControl ?? '(none)'} />
-            <InfoRow label="Body SHA-256" value={fetchResult.bodySha256} mono />
-            <InfoRow label="Body Length" value={`${fetchResult.bodyLength} bytes`} />
-            <InfoRow label="Fetch Time" value={`${fetchResult.fetchTimeMs} ms`} />
+            <Text style={styles.sectionTitle}>Last {activeTab.toUpperCase()} Response</Text>
+            <InfoRow label="Status" value={String(result.status)} />
+            {'demoVersion' in result && (
+              <InfoRow label="demoVersion" value={String(result.demoVersion ?? '—')} />
+            )}
+            <InfoRow label="ETag" value={result.etag ?? '—'} />
+            <InfoRow label="Last-Modified" value={result.lastModified ? formatIST(result.lastModified) : '—'} />
+            <InfoRow label="Cache-Control" value={result.cacheControl ?? '(none)'} />
+            <InfoRow label="Body SHA-256" value={result.bodySha256 || '—'} mono />
+            <InfoRow label="Body Length" value={`${result.bodyLength} bytes`} />
+            <InfoRow label="Fetch Time" value={`${result.fetchTimeMs} ms`} />
           </View>
         )}
 
@@ -197,7 +303,9 @@ function App(): React.JSX.Element {
             <Text style={styles.sectionTitle}>Server State</Text>
             <InfoRow label="Mode" value={serverState.mode} />
             <InfoRow label="Version" value={`v${serverState.version}`} />
-            <InfoRow label="Request Count" value={String(serverState.requestCount)} highlight />
+            <InfoRow label="JSON Requests" value={String(serverState.jsonCount ?? serverState.requestCount)} highlight />
+            <InfoRow label="PNG Requests" value={String(serverState.pngCount ?? 0)} highlight />
+            <InfoRow label="SVG Requests" value={String(serverState.svgCount ?? 0)} highlight />
             <InfoRow label="Cache-Control" value={serverState.cacheControl ?? '(none)'} />
             <InfoRow label="Server ETag" value={serverState.etag} mono />
             <InfoRow label="Last-Modified" value={formatIST(serverState.lastModified)} />
@@ -217,6 +325,25 @@ function App(): React.JSX.Element {
         </View>
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+function Tab({
+  title,
+  active,
+  onPress,
+}: {
+  title: string;
+  active: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity
+      style={[styles.tab, active && styles.tabActive]}
+      onPress={onPress}
+      activeOpacity={0.7}>
+      <Text style={[styles.tabText, active && styles.tabTextActive]}>{title}</Text>
+    </TouchableOpacity>
   );
 }
 
@@ -310,6 +437,32 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#444',
   },
+  tabContainer: {
+    flexDirection: 'row',
+    marginBottom: 12,
+    gap: 8,
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: '#2a2a4a',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#444',
+  },
+  tabActive: {
+    backgroundColor: '#bb86fc',
+    borderColor: '#bb86fc',
+  },
+  tabText: {
+    color: '#888',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  tabTextActive: {
+    color: '#1a1a2e',
+  },
   previewContainer: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -321,6 +474,10 @@ const styles = StyleSheet.create({
     borderColor: '#333',
   },
   lottie: {
+    width: 180,
+    height: 180,
+  },
+  image: {
     width: 180,
     height: 180,
   },
